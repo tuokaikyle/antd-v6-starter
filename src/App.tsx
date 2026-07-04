@@ -2,10 +2,12 @@ import { Suspense, useMemo, useState } from 'react';
 import {
   AppstoreOutlined,
   BellOutlined,
+  LoginOutlined,
   MenuOutlined,
   ProjectOutlined,
   SearchOutlined,
   SettingOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Outlet, useRouterState, useNavigate } from '@tanstack/react-router';
@@ -211,10 +213,11 @@ const App: React.FC = () => {
                 />
               </Badge>
               <Dropdown
+                align={{ offset: [0, 8] }}
                 menu={{
                   items: [
-                    { key: 'profile', label: 'Profile' },
-                    { key: 'login', label: 'Log in' },
+                    { key: 'profile', label: 'Profile', icon: <UserOutlined /> },
+                    { key: 'login', label: 'Log in', icon: <LoginOutlined /> },
                   ],
                   style: { minWidth: 160 },
                 }}
