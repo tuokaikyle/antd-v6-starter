@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import {
   AppstoreOutlined,
   BellOutlined,
@@ -8,12 +8,14 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
+import { Outlet, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Avatar,
   Badge,
   Breadcrumb,
   Button,
   ConfigProvider,
+  Dropdown,
   Flex,
   Input,
   Layout,
@@ -26,12 +28,6 @@ import './App.css';
 
 const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
-const OverviewPage = lazy(() => import('./OverviewPage'));
-const WorkspacePage = lazy(() => import('./WorkspacePage'));
-const ProjectsPage = lazy(() => import('./ProjectsPage'));
-const TasksPage = lazy(() => import('./TasksPage'));
-const CalendarPage = lazy(() => import('./CalendarPage'));
-const SettingsPage = lazy(() => import('./SettingsPage'));
 
 type MenuItem = Required<MenuProps>['items'][number];
 
@@ -43,7 +39,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { key: 'overview', label: 'Overview', icon: <AppstoreOutlined /> },
+  { key: 'dashboard', label: 'Dashboard', icon: <AppstoreOutlined /> },
   {
     key: 'workspace',
     label: 'Workspace',
@@ -67,74 +63,58 @@ function toMenuItems(items: NavItem[]): MenuItem[] {
   }));
 }
 
-function buildBreadcrumb(
-  key: string,
-  items: NavItem[],
-  parents: { title: string }[] = [],
-): { title: string }[] {
-  for (const item of items) {
-    if (item.key === key) {
-      return [...parents, { title: item.label }];
-    }
-    if (item.children) {
-      const found = buildBreadcrumb(key, item.children, [
-        ...parents,
-        { title: item.label },
-      ]);
-      if (found.length > 0) return found;
-    }
-  }
-  return [];
-}
-
-function findParentKey(key: string, items: NavItem[]): string | undefined {
-  for (const item of items) {
-    if (item.children?.some((child) => child.key === key)) {
-      return item.key;
-    }
-    if (item.children) {
-      const found = findParentKey(key, item.children);
-      if (found) return found;
-    }
-  }
-}
-
-const pageMap: Record<string, React.LazyExoticComponent<React.FC>> = {
-  overview: OverviewPage,
-  'workspace-overview': WorkspacePage,
-  projects: ProjectsPage,
-  tasks: TasksPage,
-  calendar: CalendarPage,
-  settings: SettingsPage,
-};
 
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [selectedKey, setSelectedKey] = useState('overview');
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const menuItems = useMemo(() => toMenuItems(navItems), []);
   const {
     token: { colorBgLayout },
   } = theme.useToken();
 
+  const routerState = useRouterState();
+  const navigate = useNavigate();
+  const pathname = routerState.location.pathname;
+
+  const keyToPath: Record<string, string> = {
+    dashboard: '/',
+    'workspace-overview': '/workspace',
+    projects: '/workspace/projects',
+    tasks: '/workspace/tasks',
+    calendar: '/workspace/calendar',
+    settings: '/settings',
+  };
+
+  const pathToKey: Record<string, string> = {
+    '/': 'dashboard',
+    '/workspace': 'workspace-overview',
+    '/workspace/projects': 'projects',
+    '/workspace/tasks': 'tasks',
+    '/workspace/calendar': 'calendar',
+    '/settings': 'settings',
+  };
+
+  const selectedKey = pathToKey[pathname] ?? 'dashboard';
+
   const toggleNavigation = () => setCollapsed((value) => !value);
   const handleMenuSelect = ({ key }: { key: string }) => {
-    setSelectedKey(key);
-    const parentKey = findParentKey(key, navItems);
-    if (parentKey) setOpenKeys([parentKey]);
+    const path = keyToPath[key];
+    if (path) navigate({ to: path });
     if (isMobile) setCollapsed(true);
   };
   const handleOpenChange = (keys: string[]) => {
     setOpenKeys(keys);
   };
 
-  const breadcrumbItems = useMemo(
-    () => buildBreadcrumb(selectedKey, navItems),
-    [selectedKey],
-  );
+  const breadcrumbItems = useMemo(() => {
+    if (pathname === '/') return [{ title: 'Dashboard' }];
+    return pathname
+      .split('/')
+      .filter(Boolean)
+      .map((s) => ({ title: s.charAt(0).toUpperCase() + s.slice(1) }));
+  }, [pathname]);
 
-  const PageComponent = pageMap[selectedKey] ?? OverviewPage;
 
   return (
     <ConfigProvider
@@ -167,7 +147,6 @@ const App: React.FC = () => {
                 <div className='brand-mark'>A</div>
                 <div className='brand-copy'>
                   <Text strong>Ant Starter</Text>
-                  <Text type='secondary'>Template shell</Text>
                 </div>
               </div>
             )}
@@ -231,7 +210,18 @@ const App: React.FC = () => {
                   type='text'
                 />
               </Badge>
-              <Avatar className='user-avatar'>KS</Avatar>
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: 'profile', label: 'Profile' },
+                    { key: 'login', label: 'Log in' },
+                  ],
+                  style: { minWidth: 160 },
+                }}
+                trigger={['click']}
+              >
+                <Avatar className='user-avatar' style={{ cursor: 'pointer' }}>KS</Avatar>
+              </Dropdown>
             </Space>
           </Header>
 
@@ -239,7 +229,7 @@ const App: React.FC = () => {
             <Suspense
               fallback={<div className='page-loading'>Loading...</div>}
             >
-              <PageComponent />
+              <Outlet />
             </Suspense>
           </Content>
       </Layout>
