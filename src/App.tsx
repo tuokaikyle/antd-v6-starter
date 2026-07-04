@@ -1,14 +1,11 @@
 import React, { lazy, Suspense, useMemo, useState } from 'react';
 import {
   AppstoreOutlined,
-  BarChartOutlined,
   BellOutlined,
-  CalendarOutlined,
   MenuOutlined,
   ProjectOutlined,
   SearchOutlined,
   SettingOutlined,
-  TeamOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import {
@@ -29,7 +26,12 @@ import './App.css';
 
 const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
-const DashboardPage = lazy(() => import('./DashboardPage'));
+const OverviewPage = lazy(() => import('./OverviewPage'));
+const WorkspacePage = lazy(() => import('./WorkspacePage'));
+const ProjectsPage = lazy(() => import('./ProjectsPage'));
+const TasksPage = lazy(() => import('./TasksPage'));
+const CalendarPage = lazy(() => import('./CalendarPage'));
+const SettingsPage = lazy(() => import('./SettingsPage'));
 
 type MenuItem = Required<MenuProps>['items'][number];
 
@@ -42,18 +44,17 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { key: 'overview', label: 'Overview', icon: <AppstoreOutlined /> },
-  { key: 'analytics', label: 'Analytics', icon: <BarChartOutlined /> },
   {
     key: 'workspace',
     label: 'Workspace',
     icon: <ProjectOutlined />,
     children: [
+      { key: 'workspace-overview', label: 'Overview' },
       { key: 'projects', label: 'Projects' },
       { key: 'tasks', label: 'Tasks' },
-      { key: 'calendar', label: 'Calendar', icon: <CalendarOutlined /> },
+      { key: 'calendar', label: 'Calendar' },
     ],
   },
-  { key: 'team', label: 'Team', icon: <TeamOutlined /> },
   { key: 'settings', label: 'Settings', icon: <SettingOutlined /> },
 ];
 
@@ -66,21 +67,74 @@ function toMenuItems(items: NavItem[]): MenuItem[] {
   }));
 }
 
+function buildBreadcrumb(
+  key: string,
+  items: NavItem[],
+  parents: { title: string }[] = [],
+): { title: string }[] {
+  for (const item of items) {
+    if (item.key === key) {
+      return [...parents, { title: item.label }];
+    }
+    if (item.children) {
+      const found = buildBreadcrumb(key, item.children, [
+        ...parents,
+        { title: item.label },
+      ]);
+      if (found.length > 0) return found;
+    }
+  }
+  return [];
+}
+
+function findParentKey(key: string, items: NavItem[]): string | undefined {
+  for (const item of items) {
+    if (item.children?.some((child) => child.key === key)) {
+      return item.key;
+    }
+    if (item.children) {
+      const found = findParentKey(key, item.children);
+      if (found) return found;
+    }
+  }
+}
+
+const pageMap: Record<string, React.LazyExoticComponent<React.FC>> = {
+  overview: OverviewPage,
+  'workspace-overview': WorkspacePage,
+  projects: ProjectsPage,
+  tasks: TasksPage,
+  calendar: CalendarPage,
+  settings: SettingsPage,
+};
+
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const selectedKey = 'overview';
+  const [selectedKey, setSelectedKey] = useState('overview');
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
   const menuItems = useMemo(() => toMenuItems(navItems), []);
   const {
     token: { colorBgLayout },
   } = theme.useToken();
 
   const toggleNavigation = () => setCollapsed((value) => !value);
-  const closeMobileNavigation = () => {
-    if (isMobile) {
-      setCollapsed(true);
-    }
+  const handleMenuSelect = ({ key }: { key: string }) => {
+    setSelectedKey(key);
+    const parentKey = findParentKey(key, navItems);
+    if (parentKey) setOpenKeys([parentKey]);
+    if (isMobile) setCollapsed(true);
   };
+  const handleOpenChange = (keys: string[]) => {
+    setOpenKeys(keys);
+  };
+
+  const breadcrumbItems = useMemo(
+    () => buildBreadcrumb(selectedKey, navItems),
+    [selectedKey],
+  );
+
+  const PageComponent = pageMap[selectedKey] ?? OverviewPage;
 
   return (
     <ConfigProvider
@@ -107,21 +161,31 @@ const App: React.FC = () => {
           trigger={null}
           width={256}
         >
-          <Flex align='center' className='brand' gap={12}>
-            <div className='brand-mark'>A</div>
+          <div className='sidebar-header'>
             {!collapsed && (
-              <div className='brand-copy'>
-                <Text strong>Ant Starter</Text>
-                <Text type='secondary'>Template shell</Text>
+              <div className='brand'>
+                <div className='brand-mark'>A</div>
+                <div className='brand-copy'>
+                  <Text strong>Ant Starter</Text>
+                  <Text type='secondary'>Template shell</Text>
+                </div>
               </div>
             )}
-          </Flex>
+            <Button
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className='sidebar-trigger'
+              icon={<MenuOutlined />}
+              onClick={toggleNavigation}
+              type='text'
+            />
+          </div>
           <Menu
             className='side-menu'
             items={menuItems}
             mode='inline'
-            onClick={closeMobileNavigation}
-            openKeys={collapsed ? [] : ['workspace']}
+            onOpenChange={handleOpenChange}
+            onSelect={handleMenuSelect}
+            openKeys={collapsed ? [] : openKeys}
             selectedKeys={[selectedKey]}
             theme='light'
           />
@@ -141,14 +205,14 @@ const App: React.FC = () => {
             <Flex align='center' className='header-left' gap={8}>
               <Button
                 aria-label={collapsed ? 'Open navigation' : 'Close navigation'}
-                className='nav-trigger'
+                className='nav-trigger mobile-nav-trigger'
                 icon={<MenuOutlined />}
                 onClick={toggleNavigation}
                 type='text'
               />
               <Breadcrumb
                 className='header-breadcrumb'
-                items={[{ title: 'Workspace' }, { title: 'Overview' }]}
+                items={breadcrumbItems}
               />
             </Flex>
 
@@ -173,12 +237,12 @@ const App: React.FC = () => {
 
           <Content className='app-content'>
             <Suspense
-              fallback={<div className='page-loading'>Loading overview...</div>}
+              fallback={<div className='page-loading'>Loading...</div>}
             >
-              <DashboardPage />
+              <PageComponent />
             </Suspense>
           </Content>
-        </Layout>
+      </Layout>
       </Layout>
     </ConfigProvider>
   );
