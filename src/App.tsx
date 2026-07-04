@@ -1,5 +1,9 @@
-function App() {
-  return <h1>Hello, world</h1>
-}
+import { Button } from 'antd';
 
-export default App
+const App = () => (
+  <div className='App'>
+    <Button type='primary'>Button</Button>
+  </div>
+);
+
+export default App;
